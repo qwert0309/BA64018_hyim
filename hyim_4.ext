@@ -1,0 +1,93 @@
+---
+title: "Assignment 2"
+author: "Brian Yim"
+date: "2025-09-06"
+output: html_document
+---
+
+## Case 1 
+```{r}
+# install.packages("lpSolve")  # uncomment if not installed
+library(lpSolve)
+
+# Objective coefficients (maximize)
+obj <- c(32, 24)
+
+# Constraints (left-hand side)
+const_mat <- matrix(c(
+  3, 2,        # fabric
+  45, 40,      # labor
+  1, 0,        # xC <= 1000
+  0, 1         # xM <= 1200
+), nrow = 4, byrow = TRUE)
+
+const_dir <- c("<=", "<=", "<=", "<=")
+const_rhs <- c(5000, 84000, 1000, 1200)
+
+sol <- lp("max", obj, const_mat, const_dir, const_rhs, compute.sens = TRUE)
+sol$solution   # xC, xM
+sol$objval     # maximum profit
+```
+
+##Case 2
+
+```{r}
+# install.packages("lpSolve")
+library(lpSolve)
+
+# Objective coefficients (profits for x1..x9)
+obj <- c(420, 420, 420,   # x1,x2,x3 (Large)
+         360, 360, 360,   # x4,x5,x6 (Medium)
+         300, 300, 300)   # x7,x8,x9 (Small)
+
+# Constraints matrix
+A <- matrix(0, nrow=11, ncol=9)
+
+# 1) Plant capacities
+A[1, c(1,4,7)] <- 1   # x1+x4+x7 ≤ 750
+A[2, c(2,5,8)] <- 1   # x2+x5+x8 ≤ 900
+A[3, c(3,6,9)] <- 1   # x3+x6+x9 ≤ 450
+
+# 2) Storage
+A[4, c(1,4,7)] <- c(20,15,12)   # Plant 1 ≤ 13000
+A[5, c(2,5,8)] <- c(20,15,12)   # Plant 2 ≤ 12000
+A[6, c(3,6,9)] <- c(20,15,12)   # Plant 3 ≤ 5000
+
+# 3) Market demand
+A[7, c(1,2,3)] <- 1             # Large ≤ 900
+A[8, c(4,5,6)] <- 1             # Medium ≤ 1200
+A[9, c(7,8,9)] <- 1             # Small ≤ 750
+
+# 4) Equal capacity usage (cross-multiplied equations)
+A[10, c(1,4,7)] <- 900
+A[10, c(2,5,8)] <- -750
+
+A[11, c(1,4,7)] <- 450
+A[11, c(3,6,9)] <- -750
+
+# Directions
+dir <- c("<=", "<=", "<=",
+         "<=", "<=", "<=",
+         "<=", "<=", "<=",
+         "=", "=")
+
+# RHS values
+rhs <- c(750, 900, 450,
+         13000, 12000, 5000,
+         900, 1200, 750,
+         0, 0)
+
+# Solve LP
+solution <- lp("max", obj, A, dir, rhs)
+
+# Output
+print(solution$status)     # 0 = optimal
+print(solution$objval)     # max profit
+print(solution$solution)   # values of x1..x9
+
+```
+
+
+
+
+

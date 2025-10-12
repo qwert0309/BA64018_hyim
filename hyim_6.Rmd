@@ -1,0 +1,76 @@
+---
+title: "Assignment 6 (Module 6)"
+author: "Brian Yim"
+date: "2025-10-09"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+
+
+#Answers: First, when formulating the objective function,
+#Each 𝑥𝑖𝑗 represents the amount of shipment from the source, plants 𝑖, to the destination, warehouse 𝑗, for 𝑖 = 1, 2 and 𝑗 = 1, 2, 3.
+
+#I want to minimize total cost, which includes production cost + shipping cost.
+#Production costs: Plant A: $600 per unit × number produced, Plant B: $625 per unit × number produced
+
+#Then, Minimum Z = (600+22)𝑥A1 +(600+14)𝑥A2 + (600+30)𝑥A3 +(625+16)𝑥B1 + (625+20)𝑥B2 + (625+24)𝑥B3
+
+#1.There are constraints from Supply side (i.e., production capacity)
+#A1+ 𝑥A2+ 𝑥A3 ≤ 100 (which is the capacity of Plant A)
+#B1+ 𝑥B2+ 𝑥B3 ≤ 120 (which is the capacity of Plant B)
+
+#2.There are constraints from Demand side (i.e., monthly demand)
+#A1+ 𝑥B1 =80 (demand of the warehouse 1)
+#A2+ 𝑥B2 =60 (demand of the warehouse 2)
+#A3+ 𝑥B3 =70 (demand of the warehouse 3)
+
+#3.Non-negativity xij≥0
+
+#next, when we solve this with R
+
+```{r}
+# Install lpSolve if not installed
+# install.packages("lpSolve")
+
+library(lpSolve)
+
+# Cost matrix (production + shipping)
+costs <- matrix(c(
+  600+22, 600+14, 600+30,  # Plant A to W1,W2,W3
+  625+16, 625+20, 625+24   # Plant B to W1,W2,W3
+), nrow=2, byrow=TRUE)
+
+# Supply (production capacity)
+supply <- c(100, 120)
+
+# Demand (warehouse)
+demand <- c(80, 60, 70)
+
+# Solve transportation problem
+result <- lp.transport(
+  cost.mat = costs,
+  direction = "min",
+  row.signs = rep("<=", 2), #plant side constraints
+  row.rhs = supply,
+  col.signs = rep("=", 3), #warehouse side constraints
+  col.rhs = demand
+)
+```
+
+
+```{r}
+# Show optimal shipping plan
+result$solution
+```
+
+```{r}
+
+# Show total minimum cost
+result$objval
+```
+#Answer: Minimum Total Cost: $132,790
+
+#Explanation: Plant A produces 100 units and ships 60 to W2 and 40 to W3. Plant B produces 110 units and ships 80 to W1 and 30 to W3. All warehouse demands are met, and total production + shipping cost is minimized.

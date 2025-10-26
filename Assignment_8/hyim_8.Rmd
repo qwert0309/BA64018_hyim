@@ -1,0 +1,265 @@
+---
+title: "64018_Assignment 8"
+author: "Brian Yim"
+date: "2025-10-26"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+rm(list = ls())
+library(Benchmarking)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+```
+
+```{r}
+# Create the data
+facility_data <- data.frame(
+DMU <- c("Facility 1", "Facility 2", "Facility 3", "Facility 4", "Facility 5", "Facility 6"),
+Staff_hours_per_day <- c(150, 400, 320, 520, 350, 320),
+Supplies_per_day <- c(0.2, 0.7, 1.2, 2, 1.2, 0.7),
+Reimbursed_patient_days <- c(14000, 14000, 42000, 28000, 19000, 14000),
+Privately_paid_patient_days <- c(3500, 21000, 10500, 42000, 25000, 15000)
+)
+
+# Inputs: Staff hours per day and Supplies per day
+inputs <- matrix(cbind(c(150, 400, 320, 520, 350, 320), c(0.2, 0.7, 1.2, 2, 1.2, 0.7)), ncol=2)
+colnames(inputs) <- c("Staff hours per day", "Supplies per day (in thousands)")
+
+inputs
+```
+
+```{r}
+# Outputs: Reimbursed patient-days and Privately paid patient-days
+outputs <- matrix(cbind(c(14000, 14000, 42000, 28000, 19000, 14000), c(3500, 21000, 10500, 42000, 25000, 15000)), ncol=2)
+colnames(outputs) <- c("Reimbursed patient-days", "Privately paid patient-days")
+
+outputs
+```
+
+
+#Q.1. Formulate and perform DEA analysis under all DEA assumptions of FDH, CRS, VRS, IRS, DRS, and FRH.
+
+#Formulate DEA for Facility 1
+#This formulation seeks to maximize the efficiency of Facility 1 in comparison to the other facilities. The efficiency score for each Decision Making Unit (DMU) is calculated as the ratio of the weighted sum of outputs to the weighted sum of inputs. Facility 1 achieves maximum efficiency when this ratio reaches its highest possible value.
+#Given
+#u1 and u2: Weights for the outputs (reimbursed patient-days and privately paid patient-days respectively).
+#v1 and v2: Weights for the inputs (staff hours per day and cost of supplies respectively).
+#Objective Function is to maximize the ratio of weighted outputs to weighted inputs for a specific DMU, Facility 1.
+#Objective Function: maxZ=u1×14000+u2×3500
+#Subject to: 
+#1.Input normalization for Facility 1 u1×150+u2×0.2=1
+#2.u1×14000+u2×3500−u1×150−u2×0.2=0
+#3.u1×14000+u2×21000−u1×400−u2×0.7≤0
+#4.u1×42000+u2×10500−u1×320−u2×1.2≤0
+#5.u1×28000+u2×42000−u1×520−u2×2.0≤0
+#6.u1×19000+u2×25000−u1×350−u2×1.2≤0
+#7.u1×14000+u2×15000−u1×320−u2×0.7≤0
+
+#Formulate DEA for Facility 2~6
+#For Facilities 2 through 6, the output values in the constraints are fixed according to each facility’s own #outputs, while the input values vary depending on the facility being evaluated. Once the objective function and input normalization constraint are defined for a facility, the remaining constraints remain unchanged, serving to compare that facility’s efficiency against all others. Therefore
+
+#Facility 2
+#Objective Function: maxZ=u1×14000+u2×21000
+#Input Normalization Constraint: u1×400+u2×0.7=1
+
+#Facility 3
+#Objective Function: maxZ=u1×42000+u2×10500
+#Input Normalization Constraint: u1×320+u2×1.2=1
+
+#Facility 4
+#Objective Function: maxZ=u1×28000+u2×42000
+#Input Normalization Constraint: u1×520+u2×2.0=1
+
+#Facility 5
+#Objective Function: maxZ=u1×19000+u2×25000
+#Input Normalization Constraint: u1×350+u2×1.2=1
+
+#Facility 6
+#Objective Function: maxZ=u1×14000+u2×15000
+#Input Normalization Constraint: u1×320+u2×0.7=1
+
+
+#Q1 and Q2
+#It would make more sense to run DEA Analysis and the Peers and Lambdas for different RTS assumptions
+
+#FDH
+#Results: Under the Free Disposal Hull (FDH) model, all six facilities received an efficiency score of 1.0, indicating that each facility lies on the FDH efficiency frontier. This outcome suggests that no facility is strictly dominated by any other in terms of the combination of inputs and outputs. In other words, each facility is considered fully efficient relative to the observed set of facilities. The peer analysis further supports this interpretation. Each facility’s peer is itself, and the corresponding lambda matrix shows a value of 1 for the facility and 0 for all others. This indicates that the construction of the FDH frontier for each decision-making unit relies solely on the facility itself, with no contribution from other facilities. Such a pattern is common in small datasets or when each facility has a unique combination of inputs and outputs, as FDH does not assume convexity and evaluates efficiency purely based on dominance. The FDH model confirms that all facilities are technically efficient, but it does not provide discrimination among them. 
+
+```{r}
+efficiency_FDH <- dea(inputs, outputs, RTS="fdh")
+peer_FDH <- peers(efficiency_FDH)
+lambda_FDH <- lambda(efficiency_FDH)
+efficiency_FDH
+peer_FDH
+lambda_FDH
+```
+
+
+
+
+#CRS
+#Results: In the CRS (Constant Returns to Scale) DEA model, four out of the six facilities—Facilities 1 through 4—are fully efficient, each with a score of 1.0. This means these facilities are on the efficiency frontier and are producing the maximum output possible for their level of inputs. Facilities 5 and 6, however, have efficiency scores of 0.9775 and 0.8675, which shows they are not fully efficient and could improve by either reducing inputs or increasing outputs. When looking at the peers, Facilities 1 through 4 are their own peers, which makes sense because they are fully efficient. For Facilities 5 and 6, the efficiency frontier is made up of a combination of Facilities 1, 2, and 4. The lambda values show how much each peer contributes: for Facility 5, the largest weight is on Facility 4 (0.538), with smaller weights for Facilities 1 and 2; for Facility 6, the weights are more spread out, showing that it is compared to several efficient peers.The CRS model shows which facilities are fully efficient and which ones could improve. Facilities 5 and 6 can use the top-performing facilities as benchmarks to guide how to reduce inputs or increase outputs. The efficiency scores, peers, and lambda values together give a clear picture of how each facility performs under constant returns to scale.
+
+```{r}
+efficiency_CRS <- dea(inputs, outputs, RTS="crs")
+peer_CRS <- peers(efficiency_CRS)
+lambda_CRS <- lambda(efficiency_CRS)
+efficiency_CRS
+peer_CRS
+lambda_CRS
+```
+
+
+#VRS
+#Results: In the VRS (Variable Returns to Scale) DEA model, five out of the six facilities—Facilities 1 through 5—are fully efficient, each with a score of 1.0. This means these facilities are operating on the efficiency frontier when we account for variable returns to scale. Facility 6, on the other hand, has an efficiency score of 0.8963, which shows it is not fully efficient and could improve by adjusting its inputs or outputs. Looking at the peers, Facilities 1 through 5 are their own peers, which makes sense because they are fully efficient. Facility 6 is benchmarked against Facilities 1, 2, and 5. The lambda values show how much each peer contributes to Facility 6’s efficiency: Facility 1 has the largest weight (about 0.401), Facility 2 contributes 0.342, and Facility 5 contributes 0.256. This tells us that to become efficient, Facility 6 would need to model itself after these three top-performing facilities. The VRS model helps us see that most facilities are efficient, but Facility 6 still has some room to improve. Compared to CRS, VRS gives a more realistic view because it allows for differences in scale among the facilities.
+
+
+```{r}
+efficiency_VRS <- dea(inputs, outputs, RTS="vrs")
+peer_VRS <- peers(efficiency_VRS)
+lambda_VRS <- lambda(efficiency_VRS)
+
+efficiency_VRS
+peer_VRS
+lambda_VRS
+```
+
+#IRS
+#Results: In the Increasing Returns to Scale (IRS) model, five of the six facilities—Facilities 1 through 5—achieve an efficiency score of 1.0, indicating that they are operating on the efficiency frontier under the assumption that output can increase more than proportionally with inputs. Facility 6, however, has a lower efficiency score of 0.8963, suggesting it is not performing as efficiently as the best-practice facilities and could increase output relative to its current level of inputs.Examining the peer relationships, each of the fully efficient facilities (1–5) serves as its own benchmark, reflecting their optimal performance. Facility 6 relies on a combination of Facilities 1, 2, and 5 to form its reference set. The lambda values indicate how much each peer influences Facility 6’s efficiency: Facility 1 contributes approximately 0.401, Facility 2 about 0.342, and Facility 5 around 0.256. These values show that Facility 6 could improve by adopting practices similar to these higher-performing facilities.The IRS analysis emphasizes the potential for efficiency gains when facilities operate at a scale where increasing inputs could lead to disproportionately higher outputs. While most facilities are already efficient, Facility 6 has clear opportunities for improvement, and the combination of peer identification and lambda weights provides guidance on which facilities it should benchmark against.
+
+
+```{r}
+efficiency_IRS <- dea(inputs, outputs, RTS="irs")
+peer_IRS <- peers(efficiency_IRS)
+lambda_IRS <- lambda(efficiency_IRS)
+
+efficiency_IRS
+peer_IRS
+lambda_IRS
+```
+
+
+#DRS
+#Results: In the Decreasing Returns to Scale (DRS) model, four of the six facilities—Facilities 1 through 4—are fully efficient, each with a score of 1.0. This indicates that these facilities are operating on the efficiency frontier even under the assumption that increasing inputs leads to less than proportional increases in outputs. Facility 5 has a slightly lower efficiency score of 0.9775, while Facility 6 has the lowest score of 0.8675, suggesting that these two facilities are not making optimal use of their inputs and could improve performance. When looking at the peer assignments, the fully efficient facilities (1–4) serve as their own benchmarks. Facilities 5 and 6 rely on a combination of the efficient facilities as references. For Facility 5, the largest weight is on Facility 4 (0.538), with smaller contributions from Facilities 1 (0.200) and 2 (0.080). Facility 6, meanwhile, has a more spread-out set of weights, with the largest contributions from Facilities 2 (0.395) and 1 (0.343) and a smaller weight from Facility 4 (0.131). This suggests that Facilities 5 and 6 could improve efficiency by adopting practices similar to these higher-performing peers.DRS model highlights how some facilities may experience diminishing efficiency when scaling up inputs. While Facilities 1–4 are already operating efficiently, Facilities 5 and 6 have room for improvement, and the peer and lambda information helps identify which top-performing facilities they should emulate to increase their efficiency.
+
+
+```{r}
+efficiency_DRS <- dea(inputs, outputs, RTS="drs")
+peer_DRS <- peers(efficiency_DRS)
+lambda_DRS <- lambda(efficiency_DRS)
+
+efficiency_DRS 
+peer_DRS
+lambda_DRS
+```
+
+#FRH
+#Results: The FRH results is identical as the FDH results maybe because of there are only 6 facilities, and the data points are already discrete and not forming complex convex combinations. 
+
+
+```{r}
+efficiency_FRH <- dea(inputs, outputs, RTS="add")
+peer_FRH <- peers(efficiency_FRH)
+lambda_FRH <- lambda(efficiency_FRH)
+
+efficiency_FRH
+peer_FRH
+lambda_FRH
+```
+
+
+
+
+
+#Q3
+
+#Summarize the results in a tabular format_FDH
+```{r}
+# Convert efficiency_FDH to a dataframe
+df_efficiency_FDH <- as.data.frame(efficiency_FDH$eff)
+colnames(df_efficiency_FDH) <- "Efficiency_FDH"
+# Convert peer_FDH to a dataframe
+df_peer_FDH <- as.data.frame(peer_FDH)
+colnames(df_peer_FDH) <- colnames(peer_FDH)
+# Convert peer_FDH to a dataframe
+df_lambda_FDH <- as.data.frame(lambda_FDH)
+colnames(df_lambda_FDH) <- colnames(lambda_FDH)
+# Bind the new columns to your base_df
+df_FDH <- cbind(facility_data, df_efficiency_FDH, df_peer_FDH, df_lambda_FDH)
+df_FDH
+```
+
+
+#Summarize the results in a tabular format_CRS
+```{r}
+df_efficiency_CRS <- as.data.frame(efficiency_CRS$eff)
+colnames(df_efficiency_CRS) <- "Efficiency_CRS"
+df_peer_CRS <- as.data.frame(peer_CRS)
+colnames(df_peer_CRS) <- colnames(peer_CRS)
+df_lambda_CRS <- as.data.frame(lambda_CRS)
+colnames(df_lambda_CRS) <- colnames(lambda_CRS)
+df_CRS <- cbind(facility_data, df_efficiency_CRS, df_peer_CRS, df_lambda_CRS)
+df_CRS
+```
+
+
+#Summarize the results in a tabular format_VRS
+
+```{r}
+df_efficiency_VRS <- as.data.frame(efficiency_VRS$eff)
+colnames(df_efficiency_VRS) <- "Efficiency_VRS"
+df_peer_VRS <- as.data.frame(peer_VRS)
+colnames(df_peer_VRS) <- colnames(peer_VRS)
+df_lambda_VRS <- as.data.frame(lambda_VRS)
+colnames(df_lambda_VRS) <- colnames(lambda_VRS)
+df_VRS <- cbind(facility_data, df_efficiency_VRS, df_peer_VRS, df_lambda_VRS)
+df_VRS
+```
+
+
+#Summarize the results in a tabular format_IRS
+
+```{r}
+df_efficiency_IRS <- as.data.frame(efficiency_IRS$eff)
+colnames(df_efficiency_IRS) <- "Efficiency_IRS"
+df_peer_IRS <- as.data.frame(peer_IRS)
+colnames(df_peer_IRS) <- colnames(peer_IRS)
+df_lambda_IRS <- as.data.frame(lambda_IRS)
+colnames(df_lambda_IRS) <- colnames(lambda_IRS)
+df_IRS <- cbind(facility_data, df_efficiency_IRS, df_peer_IRS, df_lambda_IRS)
+df_IRS
+```
+
+#Summarize the results in a tabular format_DRS
+
+```{r}
+df_efficiency_DRS <- as.data.frame(efficiency_DRS$eff)
+colnames(df_efficiency_DRS) <- "Efficiency_DRS"
+df_peer_DRS <- as.data.frame(peer_DRS)
+colnames(df_peer_DRS) <- colnames(peer_DRS)
+df_lambda_DRS <- as.data.frame(lambda_DRS)
+colnames(df_lambda_DRS) <- colnames(lambda_DRS)
+df_DRS <- cbind(facility_data, df_efficiency_DRS, df_peer_DRS, df_lambda_DRS)
+df_DRS
+```
+
+
+#Q.4. Compare and Contrast the above Results
+
+#Under CRS, Facilities 1–4 are fully efficient, while Facilities 5 and 6 score below 1, showing they could improve by adjusting inputs or outputs proportionally. VRS and IRS relax the scale assumption, making Facility 5 fully efficient and leaving only Facility 6 below the frontier. DRS, assuming diminishing returns, shows Facilities 1–4 fully efficient, with Facilities 5 and 6 less efficient, reflecting inefficiencies at larger scales.FDH and FRH treat each facility individually and non-convexly, resulting in all six facilities being fully efficient with each as its own peer.
+
+
+
+
+

@@ -1,0 +1,167 @@
+---
+title: "Assignment module 11_Yim"
+author: "Brian Yim"
+date: "2025-11-16"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#(Q1) Formulate the problem.
+#The goal is to create a worker schedule that (1) minimizes total wage expenses and (2) ensures that enough employees are assigned each day to meet staffing requirements. To model this, I defined xj as the number of workers starting their workweek on day "j". (with j representing each day of the week,from Sunday to Saturday). Below I list the x1 to x7 (1 being Sunday and 7 being Saturday)
+#x1: The number of workers who start their workweek on Sunday.
+#x2: The number of workers who start their workweek on Monday.
+#x3: The number of workers who start their workweek on Tuesday.
+#x4: The number of workers who start their workweek on Wednesday.
+#x5: The number of workers who start their workweek on Thursday.
+#x6: The number of workers who start their workweek on Friday.
+#x7: The number of workers who start their workweek on Saturday.
+
+
+#Each day worker needed are:
+#Sunday:18
+#Monday:27
+#Tuesday: 22
+#Wednesday:26
+#Thursday:25
+#Fridday: 21
+#Saturday: 19
+
+#Shift information is
+#days off on Sun and Mon then wage is $775 
+#days off on Mon and Tue then wage is $800 
+#days off on Tue and Wed then wage is $800 
+#days off on Wed and Thu then wage is $800 
+#days off on Thu and Fri then wage is $800 
+#days off on Fri and Sat then wage is $775 
+#days off on Sat and Sun then wage is $750 
+
+
+#Given information I created the work schedule as below:
+
+# Employee  Sun  Mon  Tue  Wed  Thu  Fri  Sat  Wage
+#    X1      O    O   O    O     O    no    no  $775
+#    X2     no    O   O    O     O    O   no    $750
+#    X3     no    no  O    O     O    O    O    $775
+#    X4      O    no  no   O     O    O    O    $800
+#    X5      O    O   no  no     O    O    O    $800
+#    X6      O    O   O   no    no    O    O    $800
+#    X7      O    O   O    O    no   no   O    $800
+# workers   18    27  22   26   25   21    19
+
+
+#The goal is to minimize totla weekly wage cost
+#minimize: z = 775x1 + 750x2 + 775x3 + 800x4 + 800x5 + 800x6 + 800x7
+
+#I was able to come up with:
+#x1 + x4 + x5 + x6 + x7 ≥ 18 (Sun)
+#x1 + x2 + x5 + x6 + x7 ≥ 27 (Mon)
+#x1 + x2 + x3 + x6 + x7 ≥ 22 (Tue)
+#x1 + x2 + x3 + x4 + x7 ≥ 26 (Wed)
+#x1 + x2 + x3 + x4 + x5 ≥ 25 (Thu)
+#x2 + x3 + x4 + x5 + x6 ≥ 21 (Fri)
+#x3 + x4 + x5 + x6 + x7 ≥ 19 (Sat)
+
+#non-negativeity and integrality conditions: 
+# xj ≥ 0 and integer, for all j = 1,...7.
+
+
+#(Q2) Solve the problem
+
+#I created the data frame
+```{r}
+workers_data <- data.frame(
+  Day = c('Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'),
+  `Workers required` = c(18, 27, 22, 26, 25, 21, 19)
+)
+
+workers_data
+```
+
+#wage data
+```{r}
+shifts_df <- data.frame(
+  Shift = 1:7,
+  `Days off` = c("Sunday and Monday", "Monday and Tuesday", "Tuesday and Wednesday",
+                 "Wednesday and Thursday", "Thursday and Friday", "Friday and Saturday",
+                 "Saturday and Sunday"),
+  Wage = c(775, 800, 800, 800, 800, 775, 750)
+)
+
+shifts_df
+```
+
+
+```{r}
+library(lpSolveAPI)
+```
+
+```{r}
+IP <- make.lp(0, 7)  # we have 7 decision variables (x1 to x7)
+
+# Set the objective function coefficients
+# Assuming the objective coefficients are the wages for each day
+set.objfn(IP, c(775, 750, 775, 800, 800, 800, 800))
+
+# The constraints matrix is set up such that each row corresponds to the workers required each day
+# Add the constraints for each day of the week
+add.constraint(IP, c(1,0,0,1,1,1,1), ">=", 18)  # Sunday
+add.constraint(IP, c(1,1,0,0,1,1,1), ">=", 27)  # Monday
+add.constraint(IP, c(1,1,1,0,0,1,1), ">=", 22)  # Tuesday
+add.constraint(IP, c(1,1,1,1,0,0,1), ">=", 26)  # Wednesday
+add.constraint(IP, c(1,1,1,1,1,0,0), ">=", 25)  # Thursday
+add.constraint(IP, c(0,1,1,1,1,1,0), ">=", 21)  # Friday
+add.constraint(IP, c(0,0,1,1,1,1,1), ">=", 19)  # Saturday
+
+# Set all decision variables to be integer
+set.type(IP, columns = 1:7, type = "integer")
+
+RowNames <- c("Req Sun", "Req Mon", "Req Tue", "Req Wed", "Req Thu", "Req Fri", "Req Sat")
+ColNames <- c("Sun-Thu", "Mon-Fri", "Tue-Sat", "Wed-Sun", "Thu-Mon", "Fri-Tue", "Sat-Wed")
+dimnames(IP) <- list(RowNames, ColNames)
+IP
+```
+```{r}
+solve(IP)
+```
+
+```{r}
+get.objective(IP)
+```
+
+```{r}
+get.variables(IP)
+```
+
+#(Q3) total cost and number of workers each day
+
+#So the total cost was $25,675
+#and the number of workers solution was [1 13 2 2 7 0 8]
+#When calculating for Sunday: 1 + 2 + 7 + 0 + 8 = 18
+#Monday: 1 + 13 + 7 + 0 + 8 = 29
+#Tue: 1 + 13 + 2 + 0 + 8 = 24
+#Wed: 1 + 13 + 2 + 2 + 8 = 26
+#Thu: 1 + 13 + 2 + 2 + 7 = 25
+#Fri: 13 + 2 + 2 + 7 + 0 = 24
+#Sat: 2 + 2 + 7 + 0 + 8 = 19
+
+#Then, 
+#Sunday:18 (required) 18 (available) so it meets exactly
+#Monday:27 (required) 29 (available) so it is above
+#Tuesday: 22 (required) 24 (available) so it is above
+#Wednesday:26 (required) 26 (available) so it meets exactly
+#Thursday:25(required) 25 (available) so it meets exactly
+#Fridday: 21 (required) 24 (available) so it is above
+#Saturday: 19 (required) 19 (available) so it meets exactly
+
+
+
+
+
+
+

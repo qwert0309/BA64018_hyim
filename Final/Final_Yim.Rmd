@@ -1,0 +1,345 @@
+---
+title: "Final_Yim"
+author: "Brian Yim"
+date: "2025-11-30"
+output:
+  word_document: default
+  html_document: default
+---
+
+#For this final exam, I have to schedule staff for single daily 10-hour peak shift (Mon–Sun) minimizing labor cost while meeting staffing and rule constraints
+
+#So, to begin, I wrote out the complete LP formulation that defined all variables clearly, State objective function with actual coefficients, List ALL constraints with proper notation, and Show the constraint matrix structure
+
+#Q1. Complete LP formulation
+#1) Index sets and decision variables
+#S = {P1,P2,P3,P4,E1,E2,E3,E4,E5,E6,E7,E8}  (12 staff)
+#D = {1..7} = {Mon,Tue,Wed,Thu,Fri,Sat,Sun} (7 days)
+#Define binary decision variables
+#x[i,d] = 1 if staff i is assigned to the peak shift on day d
+#x[i,d] = 0 other wise
+#There are 12 * 7 = 84 binary variables
+#P = {P1,P2,P3,P4}
+
+#2)Parameters (numerical)
+#(I do not know how to create the table on Rstudio so I will do my best to make it look like a table from the information of the "requirements.csv")
+#Day index_d min_total_staff(md) min_paramedic(qd)
+#Mon 1 6 2
+#Tue 2 5 2
+#Wed 3 8 3
+#Thu 4 8 3
+#Fri 5 10 4
+#Sat 6 8 3
+#Sun 7 6 2
+
+#wages w_{i,d} from staff.csv
+#Paramedics (P1..P4): weekday = $250, weekend = $300
+#EMTs (E1..E8): weekday = $180, weekend = $220
+#w_id= 250 if i ∈{P1,…,P4}, d∈{1,…,5}
+#w_id= 300 if i∈{P1,…,P4}, d∈{6,7}
+#w_id= 180 if i∈{E1,…,E8}, d∈{1,...,5}
+#w_id=220 if i∈{E1,…,E8}, d∈{6,7}
+
+#Unavailability (hard constraints):
+#U={(P1,7), (P4,1), (P4,2), (E2,6), (E2,7), (E5,5)}.
+
+#3) Objective function (minimize total wage cost)
+#Minimize Z = sum_{i in S} sum_{d in D} w_{i,d} * x[i,d]
+
+#4) Constraints
+#A. Daily total-staff coverage (7 constraints)
+#For each day d in 1..7
+#sum_{i in S} x[i,d] >= m_d
+#(ensures at least m_d staff on day d)
+
+#B. Daily paramedic coverage (7 constraints)
+#For each day d in 1..7
+#sum_{p in P} x[p,d] >= q_d
+#(ensures at least q_d paramedics on day d)
+
+#C. Maximum 5 days per staff (one per staff, 12 constraints)
+#For each staff i in S
+#sum_{d=1..7} x[i,d] <= 5
+#(each staff works at most 5 days => at least 2 days off)
+
+#D.No more than 4 consecutive days (sliding-window, 12×3=36 constraints)
+#For each staff i in S and for each start s = 1,2,3 (windows Mon-Fri, Tue-Sat, Wed-Sun)
+#sum_{k=0..4} x[i, s+k] <= 4
+
+#E. Unavailability (equality constraints, one per unavailable pair, 6)
+#For each (i,d) 
+#U: x[i,d] = 0
+
+#F.Binary integrality
+#x[i,d] in {0,1}  for all i in S, d in D
+
+#5)Constraint-matrix structure (A matrix), dimensions & block pattern
+#Number of variables (columns): n = 12 * 7 = 84
+#7 (daily totals) + 7 (paramedics) + 12 (max-5) + 36 (windows) + 6 (unavailability) = 68 rows
+#So the constraint matrix 𝐴is is 68×84
+#Column ordering (recommended): group by staff, each staff block contains days Mon..Sun
+#x vector = [ x_{P1,Mon},...,x_{P1,Sun}, x_{P2,Mon},...,x_{E8,Sun} ]^T
+#Row-block patterns will be like below (since it will be too long to write all of them, I will display few examples here)
+#Daily total row for day d: has 1's at the d-th position within every staff block (12 ones)
+#Paramedic row for day d: has 1's at the d-th position for P1..P4 only (4 ones)
+#Max-5 row for staff i: has 1's at all 7 positions of staff i's block
+#Window row for staff i (start s): has 1's at the 5 positions in staff i's block corresponding to days s..s+4
+#Unavailability row for (i,d): has a single 1 at the column x[i,d] and RHS = 0
+#Example numeric rows (conceptual)
+#Mon total-staff row (RHS = 6):  ones at x_{P1,Mon}, x_{P2,Mon}, ..., x_{E8,Mon} (12 ones)  >= 6
+#Wed paramedic row (RHS = 3): ones at x_{P1,Wed},x_{P2,Wed},x_{P3,Wed},x_{P4,Wed}  >= 3
+#P2 max-5 row (RHS = 5): ones at x_{P2,Mon}..x_{P2,Sun}  <= 5
+#P3 window Tue-Sat (RHS = 4): ones at x_{P3,Tue}..x_{P3,Sat}  <= 4
+#Unavail (P4,Mon): x_{P4,Mon} = 0
+
+#6) Final model (compact)
+#Minimize Z = sum_{i in S} sum_{d in D} w_{i,d} x[i,d]
+#Subject to
+#sum_{i in S} x[i,d] >= m_d for all d = 1..7
+#sum_{p in P} x[p,d] >= q_d for all d = 1..7
+#sum_{d=1..7} x[i,d] <= 5 for all i in S
+#sum_{k=0..4} x[i,s+k] <= 4 for all i in S, s = 1,2,3
+#x[i,d] = 0 for all (i,d) in U
+#x[i,d] in {0,1} for all i,d
+
+#Q2.Manual Solution Attempt
+#I created a fully feasible schedule by hand and verified every assignment, then calculated the precise total labor cost. I scheduled the paramedics first since they are the key constraint, and afterward filled the remaining shifts with EMTs while honoring all limitations/unavailability, the 5-day maximum, and the rule against working five days in a row.
+
+
+#Staff  Mon Tue Wed Thu Fri Sat Sun  TotalDays
+#P1     1   0   1   1   1   1   0      5
+#P2     0   1   1   1   1   0   1      5
+#P3     1   1   1   0   1   1   0      5
+#P4     0   0   0   1   1   1   1      4
+#E4     1   0   1   1   1   0   1      5
+#E6     1   1   0   1   1   1   0      5
+#E8     0   0   0   0   1   1   1      3
+#E2     0   1   1   1   1   0   0      4   (E2 unavailable Sat/Sun)
+#E1     1   0   1   1   0   1   0      4
+#E3     1   1   1   0   1   0   0      4
+#E5     0   1   0   1   0   1   1      4   (E5 unavailable Fri)
+#E7     0   0   1   0   1   1   1      4
+
+
+#A quick per-day verification shows that the schedule meets all requirements. The number of paramedics per day (P1–P4) is exactly at the required minimum: Monday 2, Tuesday 2, Wednesday 3, Thursday 3, Friday 4, Saturday 3, and Sunday 2. The total staff per day, including paramedics and EMTs, also meets the daily requirements: Monday 6, Tuesday 6, Wednesday 8, Thursday 8, Friday 10, Saturday 8, and Sunday 6. All unavailability constraints are respected—P1 is not scheduled on Sunday, P4 is unavailable Monday and Tuesday, and E2 and E5 are unavailable on their respective days. Additionally, no staff member is scheduled for more than five days, and no one works five consecutive days; each five-day window contains at most four working days for every employee. Therefore, the schedule is feasible under all constraints.
+
+#Wage rules
+#Paramedics: weekday $250, weekend $300.(Weekends = Sat, Sun.)
+#EMTs: weekday $180, weekend $220. (Weekends = Sat, Sun.)
+
+#Exact cost calculation 
+#Paramedics
+#P1 (Mon,Wed,Thu,Fri,Sat) = 4 weekdays × $250 + 1 weekend × $300 = $1,000 + $300 = $1,300
+#P2 (Tue,Wed,Thu,Fri,Sun) = 4×$250 + 1×$300 = $1,300
+#P3 (Mon,Tue,Wed,Fri,Sat) = 4×$250 + 1×$300 = $1,300
+#P4 (Thu,Fri,Sat,Sun) = 2 weekdays × $250 + 2 weekends × $300 = $500 + $600 = $1,100
+#Paramedic total = $1,300 + $1,300 + $1,300 + $1,100 = $5,000
+
+#EMTs
+#E4 (Mon,Wed,Thu,Fri,Sun) = 4 weekdays × $180 + 1 weekend × $220 = $720 + $220 = $940
+#E6 (Mon,Tue,Thu,Fri,Sat) = 4×$180 + 1×$220 = $940
+#E8 (Fri,Sat,Sun) = 1 weekday × $180 + 2 weekends × $220 = $180 + $440 = $620
+#E2 (Tue,Wed,Thu,Fri) = 4×$180 = $720
+#E1 (Mon,Wed,Thu,Sat) = 3×$180 + 1×$220 = $540 + $220 = $760
+#E3 (Mon,Tue,Wed,Fri) = 4×$180 = $720
+#E5 (Tue,Thu,Sat,Sun) = 2×$180 + 2×$220 = $360 + $440 = $800
+#E7 (Wed,Fri,Sat,Sun) = 2×$180 + 2×$220 = $360 + $440 = $800
+#EMT total = 940 + 940 + 620 + 720 + 760 + 720 + 800 + 800 = $6,300
+
+#Total weekly labor cost (manual schedule)
+#total cost = paramedic total ($5,000) + EMT total ($6,300) = $11,300
+
+#Reasoning: I built the manual schedule by starting with the paramedics, since they are the most limited resource and each day requires a specific minimum number that EMTs cannot replace. I first accounted for their unavailability (P1 off Sunday and P4 off Monday–Tuesday), then assigned them to meet each day’s paramedic minimum without exceeding five total shifts or creating any five-day streaks. Once the paramedics were set, I calculated how many EMTs were still needed each day and filled those spots while respecting EMT availability, especially E2’s weekend restriction and E5’s Friday restriction. I tried to spread EMT assignments across the week to avoid overloading anyone early on, which helps prevent violations of the “no five consecutive days” rule. I also limited weekend assignments whenever possible because weekend wages are higher. After building the full schedule, I double-checked all staffing numbers, skill requirements, max-day limits, unavailability rules, and sliding five-day windows to make sure everything was feasible before computing the total labor cost.
+
+
+
+#Q3. Implementation
+
+```{r}
+# ------------------------------------------------------------
+# EMS STAFF SCHEDULING - R IMPLEMENTATION USING lpSolve
+# ------------------------------------------------------------
+
+library(lpSolve)
+
+# ------------------------------------------------------------
+# 1. DATA SETUP
+# ------------------------------------------------------------
+
+days <- c("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
+D <- length(days)
+
+paramedics <- c("P1","P2","P3","P4")
+emts <- c("E1","E2","E3","E4","E5","E6","E7","E8")
+staff <- c(paramedics, emts)
+N <- length(staff)
+
+# Daily staffing requirements
+min_staff <- c(Mon=6, Tue=6, Wed=8, Thu=8, Fri=10, Sat=8, Sun=6)
+min_paramedics <- c(Mon=2, Tue=2, Wed=3, Thu=3, Fri=4, Sat=3, Sun=2)
+
+# Unavailability (pairs)
+unavailable <- list(
+  c("P1","Sun"),
+  c("P4","Mon"), c("P4","Tue"),
+  c("E2","Sat"), c("E2","Sun"),
+  c("E5","Fri")
+)
+
+# Wage function
+wage <- function(person, day) {
+  weekend <- day %in% c("Sat","Sun")
+  if (person %in% paramedics) {
+    if (weekend) return(300) else return(250)
+  } else {
+    if (weekend) return(220) else return(180)
+  }
+}
+
+# ------------------------------------------------------------
+# 2. DECISION VARIABLES
+# ------------------------------------------------------------
+# x[p,d] flattened into a vector of length N*D
+var_index <- matrix(1:(N*D), nrow=N, ncol=D,
+                    dimnames=list(staff, days))
+
+num_vars <- N * D
+
+# ------------------------------------------------------------
+# 3. OBJECTIVE FUNCTION
+# ------------------------------------------------------------
+
+objective <- rep(0, num_vars)
+for (p in staff) {
+  for (d in days) {
+    objective[var_index[p,d]] <- wage(p,d)
+  }
+}
+
+# ------------------------------------------------------------
+# 4. BUILD CONSTRAINT MATRIX
+# ------------------------------------------------------------
+constraints <- list()
+sense <- c()
+rhs <- c()
+
+# ----- (A) Daily Staffing Minimums
+for (d in days) {
+  row <- rep(0, num_vars)
+  for (p in staff) {
+    row[var_index[p,d]] <- 1
+  }
+  constraints <- append(constraints, list(row))
+  sense <- c(sense, ">=")
+  rhs <- c(rhs, min_staff[d])
+}
+
+# ----- (B) Daily Paramedic Minimums
+for (d in days) {
+  row <- rep(0, num_vars)
+  for (p in paramedics) {
+    row[var_index[p,d]] <- 1
+  }
+  constraints <- append(constraints, list(row))
+  sense <- c(sense, ">=")
+  rhs <- c(rhs, min_paramedics[d])
+}
+
+# ----- (C) Unavailability: x[p,d] = 0
+for (pair in unavailable) {
+  p <- pair[1]; d <- pair[2]
+  row <- rep(0, num_vars)
+  row[var_index[p,d]] <- 1
+  constraints <- append(constraints, list(row))
+  sense <- c(sense, "=")
+  rhs <- c(rhs, 0)
+}
+
+# ----- (D) Max 5 days per staff
+for (p in staff) {
+  row <- rep(0, num_vars)
+  for (d in days) {
+    row[var_index[p,d]] <- 1
+  }
+  constraints <- append(constraints, list(row))
+  sense <- c(sense, "<=")
+  rhs <- c(rhs, 5)
+}
+
+# ----- (E) No 5 consecutive days (sliding windows)
+windows <- list(
+  c("Mon","Tue","Wed","Thu","Fri"),
+  c("Tue","Wed","Thu","Fri","Sat"),
+  c("Wed","Thu","Fri","Sat","Sun")
+)
+
+for (p in staff) {
+  for (w in windows) {
+    row <- rep(0, num_vars)
+    for (d in w) {
+      row[var_index[p,d]] <- 1
+    }
+    constraints <- append(constraints, list(row))
+    sense <- c(sense, "<=")
+    rhs <- c(rhs, 4)
+  }
+}
+
+# Combine into full constraint matrix
+A <- do.call(rbind, constraints)
+
+# ------------------------------------------------------------
+# 5. SOLVE USING lpSolve
+# ------------------------------------------------------------
+solution <- lp(
+  direction="min",
+  objective.in = objective,
+  const.mat = A,
+  const.dir = sense,
+  const.rhs = rhs,
+  all.bin = TRUE
+)
+
+cat("Status:", solution$status, "\n")
+cat("Total Cost = $", solution$objval, "\n\n")
+
+# ------------------------------------------------------------
+# 6. DISPLAY SCHEDULE
+# ------------------------------------------------------------
+x_vals <- matrix(solution$solution, nrow=N, ncol=D, byrow=FALSE,
+                 dimnames=list(staff, days))
+
+print("Final Schedule:")
+print(x_vals)
+
+```
+
+#Q4. Weekly Optimal Schedule
+#The optimization model produced the following weekly schedule, where 1 = working the 10 AM–8 PM peak shift and 0 = off:
+
+#Mon Tue Wed Thu Fri Sat Sun  Total_Days Cost  
+#P1(Garcia)   1   0   1   1   1   1   0       5       $1,300
+#P2(Smith)    0   1   0   1   1   1   1       5       $1,350
+#P3(Johnson)  1   1   1   0   1   0   1       5       $1,300
+#P4(Willimas) 0   0   1   1   1   1   0       4       $1,050     Total paramedic cost=$5,000
+#E1(Brown)    0   0   1   0   0   0   1       2       $400
+#E2(Jones)    1   1   1   0   1   0   0       4       $720
+#E3(Miller)   0   1   0   1   1   1   1       5       $980
+#E4(Davis)    0   1   0   1   1   1   1       5       $980
+#E5(Wilson)   0   1   1   1   0   1   1       5       $980
+#E6(Moore)    1   0   1   1   1   1   0       5       $940
+#E7(Taylor)   1   0   1   1   1   1   0       5       $940
+#E8(Anderson) 1   0   0   0   1   0   0       2       $360       Total EMT cost=$6,300
+#Daily_total  6   6   7   8   10  8   6
+#Paramedics   2   2   3   3   4   3   2
+
+#Total Cost and Cost Breakdown: 
+#Using the wage structure of $250 per weekday and $300 per weekend shift for paramedics, and $180 per weekday and $220 per weekend shift for EMTs, I calculated the total labor cost for the model-generated schedule. Among the paramedics, P1 works four weekdays and one weekend day for a total of $1,300, P2 works three weekdays and two weekend days for $1,350, P3 works four weekdays and one weekend day for $1,300, and P4 works three weekdays and one weekend day for $1,050. Together, the four paramedics account for $5,000 in weekly labor cost. For the EMTs, E1’s combination of one weekday and one weekend shift costs $400, E2 works four weekdays for $720, and E3, E4, and E5 each work three weekdays and two weekends, contributing $980 each. E6 and E7 both work four weekdays and one weekend day for $940 apiece, and E8 works two weekdays for $360. The EMT group therefore totals $6,300 in weekly wages. Summing paramedic and EMT labor costs results in a total weekly cost of $11,300, which matches the objective value produced by the lpSolve optimization model.
+
+#Constraint Verification
+#I  checked the solver’s schedule to make sure it was fully feasible. The daily staffing totals all meet the required 6–10 people, and the minimum number of paramedics is satisfied each day. All unavailability rules are respected—P1 has Sunday off, P4 is off Monday and Tuesday, E2 has no weekend shifts, and E5 is off Friday. No one works more than five days, everyone gets at least two days off, and there are no five-day consecutive work stretches. Overall, the solver’s schedule satisfies all of the problem’s constraints.
+
+#Comparison to Manual Solution
+#When I compared the solver’s schedule to the manual schedule I created in Q2, I found that both are fully feasible and result in the same total weekly labor cost of $11,300. The main difference lies in how individual shifts are distributed across staff. The optimization model assigns a different mix of weekday and weekend shifts—particularly among the EMTs and between paramedics like P2 and P3—but still meets all rules regarding availability, daily requirements, and workload limits. Both schedules avoid five-day streaks and honor every unavailability constraint, though they balance weekend coverage slightly differently. Since the objective function is linear and several feasible combinations lead to the same total cost, it makes sense that the problem has multiple optimal solutions. My manual schedule and the lpSolve output simply represent two alternative optimal ways to staff the week.
+
+
